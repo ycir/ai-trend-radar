@@ -12,7 +12,10 @@
 - 采集 Hacker News 相关讨论
 - 采集 arXiv 最新 AI 相关论文
 - 本地 SQLite 保存历史快照，为后续计算增长率做准备
+- 基于历史快照计算 Star、下载、点赞、评论等增长指标
+- 可选 OpenAI 摘要：解释项目是什么、为什么值得看、有什么风险
 - 输出 Markdown 和 HTML 报告
+- GitHub Actions 可自动发布到 GitHub Pages
 - 支持离线样例模式，方便先验证环境
 
 ## 快速开始
@@ -39,6 +42,14 @@ $env:GITHUB_TOKEN="你的 GitHub token"
 python -m trend_radar --days 1 --limit 25
 ```
 
+如果要给榜单前几项加 LLM 摘要：
+
+```powershell
+$env:PYTHONPATH="src"
+$env:OPENAI_API_KEY="sk_xxx"
+python -m trend_radar --days 1 --limit 25 --summarize
+```
+
 如果你已经安装了 Python，也可以先安装成命令行工具：
 
 ```powershell
@@ -62,6 +73,17 @@ python -m trend_radar --days 30 --limit 60
 $env:GITHUB_TOKEN="ghp_xxx"
 ```
 
+## GitHub Pages
+
+仓库里包含 `.github/workflows/daily-report.yml`。它会每天生成 daily、weekly、monthly 三份报告，并把 daily 报告发布成 GitHub Pages 首页。
+
+启用方式：
+
+1. 到 GitHub 仓库的 `Settings -> Pages`
+2. `Build and deployment` 选择 `GitHub Actions`
+3. 如需 LLM 摘要，在 `Settings -> Secrets and variables -> Actions` 添加 `OPENAI_API_KEY`
+4. 手动运行一次 `Daily AI Trend Radar` workflow 验证
+
 ## 自定义关键词
 
 ```powershell
@@ -77,13 +99,14 @@ src/trend_radar/
   cli.py           命令行入口
   scoring.py       趋势评分
   storage.py       SQLite 快照
+  summarizer.py    可选 LLM 摘要
   report.py        Markdown / HTML 报告
 ```
 
 ## 下一步建议
 
-1. 加 GitHub Stargazers 时间序列，计算真实 Star 增长率。
+1. 加 GitHub Stargazers 时间序列，让 Star 增长统计更精确。
 2. 加 GH Archive，捕捉突然增多的 Star/Fork/Watch 事件。
 3. 加 Product Hunt、Reddit、GDELT、公司博客 RSS。
-4. 加 LLM 摘要：为什么值得看、适合谁、和已有工具有什么区别。
-5. 做每日定时任务，把报告推送到邮箱、Telegram 或 Slack。
+4. 做 Telegram、Email 或 Slack 推送。
+5. 加项目详情页，展示指标曲线、README 摘要、Release 和许可证。
