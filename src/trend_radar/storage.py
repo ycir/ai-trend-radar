@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import TrendItem
+
+
+GROWTH_METRICS = ("stars", "forks", "watchers", "likes", "downloads", "points", "comments")
 
 
 def init_db(path: str) -> None:
@@ -94,7 +97,61 @@ def save_items(path: str, items: list[TrendItem]) -> None:
             )
 
 
+def annotate_growth(path: str, items: list[TrendItem]) -> list[TrendItem]:
+    init_db(path)
+    with sqlite3.connect(path) as conn:
+        for item in items:
+            row = conn.execute(
+                """
+                SELECT fetched_at, metrics_json, score
+                FROM metric_snapshots
+                WHERE item_key = ?
+                ORDER BY fetched_at DESC
+                LIMIT 1
+                """,
+                (item.key,),
+            ).fetchone()
+            if not row:
+                continue
+
+            previous_at, metrics_json, previous_score = row
+            previous_metrics = json.loads(metrics_json)
+            item.metadata["previous_metrics_at"] = previous_at
+            item.metadata["previous_score"] = previous_score
+
+            for metric in GROWTH_METRICS:
+                current = _number(item.metrics.get(metric))
+                previous = _number(previous_metrics.get(metric))
+                if current is None or previous is None:
+                    continue
+                delta = current - previous
+                item.metrics[f"{metric}_delta"] = int(delta) if float(delta).is_integer() else round(delta, 2)
+                if previous > 0:
+                    item.metrics[f"{metric}_growth_pct"] = round((delta / previous) * 100, 2)
+
+            item.metrics["snapshot_age_hours"] = _snapshot_age_hours(previous_at, item.fetched_at)
+    return items
+
+
 def parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(value)
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _snapshot_age_hours(previous_at: str, current_at: datetime) -> float:
+    previous = parse_datetime(previous_at)
+    if not previous:
+        return 0.0
+    if previous.tzinfo is None:
+        previous = previous.replace(tzinfo=timezone.utc)
+    current = current_at if current_at.tzinfo else current_at.replace(tzinfo=timezone.utc)
+    return round(max(0.0, (current - previous).total_seconds() / 3600), 2)
