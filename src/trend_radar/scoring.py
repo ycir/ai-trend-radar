@@ -35,6 +35,10 @@ def score_items(items: list[TrendItem], days: int) -> list[TrendItem]:
         score += metric_score
         reasons.extend(metric_reasons)
 
+        growth_score, growth_reasons = _growth_score(item)
+        score += growth_score
+        reasons.extend(growth_reasons)
+
         if item.source in {"github", "huggingface", "hackernews"} and metric_score <= 0:
             score -= 8
             reasons.append("no engagement yet")
@@ -87,6 +91,31 @@ def _metric_score(item: TrendItem) -> tuple[float, list[str]]:
         reasons.append("recent paper")
 
     return score, reasons
+
+
+def _growth_score(item: TrendItem) -> tuple[float, list[str]]:
+    score = 0.0
+    reasons: list[str] = []
+    metric_labels = {
+        "stars": "stars",
+        "forks": "forks",
+        "likes": "HF likes",
+        "downloads": "downloads",
+        "points": "HN points",
+        "comments": "comments",
+    }
+
+    for metric, label in metric_labels.items():
+        delta = _number(item.metrics.get(f"{metric}_delta"))
+        pct = _number(item.metrics.get(f"{metric}_growth_pct"))
+        if delta and delta > 0:
+            score += min(18, 4 * math.log10(delta + 1))
+            reasons.append(f"+{int(delta)} {label}")
+        if pct and pct >= 20:
+            score += min(12, pct / 10)
+            reasons.append(f"{pct:.0f}% {label} growth")
+
+    return score, reasons[:3]
 
 
 def _number(value: object) -> float:
