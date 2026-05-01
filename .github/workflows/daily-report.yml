@@ -1,0 +1,28 @@
+name: Daily AI Trend Radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * *"
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Generate daily report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          PYTHONPATH: src
+        run: python -m trend_radar --days 1 --limit 25
+      - name: Upload report artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-trend-radar-report
+          path: |
+            reports/
+            data/trends.sqlite3
