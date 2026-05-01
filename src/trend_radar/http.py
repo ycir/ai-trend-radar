@@ -58,3 +58,40 @@ class HttpClient:
                 raise
 
         raise RuntimeError(f"HTTP request failed: {url}") from last_error
+
+    def post_json(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        headers: dict[str, str] | None = None,
+        retries: int = 2,
+    ) -> Any:
+        body = json.dumps(payload).encode("utf-8")
+        merged_headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if headers:
+            merged_headers.update(headers)
+
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            request = urllib.request.Request(url, data=body, headers=merged_headers, method="POST")
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                last_error = exc
+                if exc.code in {403, 429, 500, 502, 503, 504} and attempt < retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+            except urllib.error.URLError as exc:
+                last_error = exc
+                if attempt < retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+
+        raise RuntimeError(f"HTTP POST failed: {url}") from last_error
