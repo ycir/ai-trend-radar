@@ -57,8 +57,9 @@ def _hit_to_item(hit: dict) -> TrendItem:
 
 
 def _looks_relevant(item: TrendItem, keyword: str) -> bool:
-    haystack = " ".join([item.title, item.url, item.description]).lower()
     normalized = keyword.lower()
     if len(normalized) <= 3:
-        return bool(re.search(rf"\b{re.escape(normalized)}\b", haystack))
+        short_haystack = " ".join([item.title, item.description]).lower()
+        return bool(re.search(rf"\b{re.escape(normalized)}\b", short_haystack))
+    haystack = " ".join([item.title, item.url, item.description]).lower()
     return normalized in haystack
