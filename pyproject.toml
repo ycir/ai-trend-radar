@@ -1,0 +1,19 @@
+[project]
+name = "ai-trend-radar"
+version = "0.1.0"
+description = "MVP radar for fresh AI tools and projects across GitHub, Hugging Face, HN, and arXiv."
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+trend-radar = "trend_radar.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
