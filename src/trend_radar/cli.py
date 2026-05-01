@@ -10,7 +10,8 @@ from .models import RunConfig, TrendItem
 from .report import write_reports
 from .sample_data import sample_items
 from .scoring import score_items
-from .storage import save_items
+from .storage import annotate_growth, save_items
+from .summarizer import add_llm_summaries
 
 
 DEFAULT_KEYWORDS = [
@@ -34,6 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", default="reports", help="Directory for HTML and Markdown reports.")
     parser.add_argument("--db", default="data/trends.sqlite3", help="SQLite database path.")
     parser.add_argument("--offline", action="store_true", help="Use bundled sample data instead of network APIs.")
+    parser.add_argument("--summarize", action="store_true", help="Use OpenAI to summarize top trend items.")
+    parser.add_argument("--summary-limit", type=int, default=8, help="Number of top items to summarize.")
+    parser.add_argument("--openai-model", default=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"), help="OpenAI model for summaries.")
     parser.add_argument(
         "--keywords",
         default=",".join(DEFAULT_KEYWORDS),
@@ -50,6 +54,8 @@ def main(argv: list[str] | None = None) -> int:
         offline=args.offline,
         github_token=os.getenv("GITHUB_TOKEN"),
         hf_token=os.getenv("HF_TOKEN"),
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        openai_model=args.openai_model,
     )
 
     items = run(config)
@@ -57,7 +63,10 @@ def main(argv: list[str] | None = None) -> int:
         print("No items found. Try a larger --days window or broader --keywords.")
         return 1
 
+    items = annotate_growth(config.db_path, items)
     ranked = score_items(items, config.days)
+    if args.summarize:
+        ranked = add_llm_summaries(ranked, config.openai_api_key, config.openai_model, args.summary_limit)
     save_items(config.db_path, ranked)
     md_path, html_path = write_reports(ranked, config.output_dir, config.days)
     print(f"Saved {len(ranked)} items")
