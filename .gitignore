@@ -4,5 +4,6 @@ __pycache__/
 .env
 data/
 reports/
+reports-*/
 dist/
 *.egg-info/
