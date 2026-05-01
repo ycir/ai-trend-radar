@@ -5,24 +5,42 @@ on:
   schedule:
     - cron: "0 1 * * *"
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   report:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Generate daily report
+      - name: Generate reports
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           PYTHONPATH: src
-        run: python -m trend_radar --days 1 --limit 25
-      - name: Upload report artifacts
-        uses: actions/upload-artifact@v4
+        run: |
+          python -m trend_radar --days 1 --limit 25 --output-dir site/daily --summarize
+          python -m trend_radar --days 7 --limit 40 --output-dir site/weekly --summarize
+          python -m trend_radar --days 30 --limit 60 --output-dir site/monthly --summarize
+          cp site/daily/*-daily.html site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
-          name: ai-trend-radar-report
-          path: |
-            reports/
-            data/trends.sqlite3
+          path: site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
