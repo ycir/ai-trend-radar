@@ -27,6 +27,7 @@ def render_markdown(items: list[TrendItem], days: int) -> str:
         "",
     ]
     for index, item in enumerate(items, start=1):
+        summary = _format_summary(item)
         lines.extend(
             [
                 f"## {index}. {item.title}",
@@ -38,10 +39,11 @@ def render_markdown(items: list[TrendItem], days: int) -> str:
                 f"- Metrics: {_format_metrics(item)}",
                 f"- Why now: {', '.join(item.score_reasons) if item.score_reasons else 'fresh signal'}",
                 "",
-                _one_line(item.description),
-                "",
             ]
         )
+        if summary:
+            lines.extend([summary, ""])
+        lines.extend([_one_line(item.description), ""])
     return "\n".join(lines)
 
 
@@ -130,6 +132,17 @@ def render_html(items: list[TrendItem], days: int) -> str:
       font-size: 14px;
       line-height: 1.5;
     }}
+    .summary {{
+      border-left: 3px solid var(--accent);
+      margin: 12px 0;
+      padding: 2px 0 2px 12px;
+      color: #344054;
+      font-size: 14px;
+      line-height: 1.45;
+    }}
+    .summary p {{
+      margin: 7px 0;
+    }}
     .chips {{
       display: flex;
       flex-wrap: wrap;
@@ -177,6 +190,7 @@ def _card(item: TrendItem, index: int) -> str:
   </div>
   <p class="meta">{html.escape(item.source)} / {html.escape(item.item_type)} · {html.escape(_format_metrics(item))}</p>
   <div class="chips">{tags}</div>
+  {_summary_block(item)}
   <p class="desc">{html.escape(_one_line(item.description))}</p>
   <p class="reasons">Why now: {html.escape(reasons)}</p>
 </article>"""
@@ -185,7 +199,53 @@ def _card(item: TrendItem, index: int) -> str:
 def _format_metrics(item: TrendItem) -> str:
     if not item.metrics:
         return "n/a"
-    return ", ".join(f"{key}: {value}" for key, value in item.metrics.items())
+    parts: list[str] = []
+    for key, value in item.metrics.items():
+        if key == "snapshot_age_hours" or key.endswith("_growth_pct"):
+            continue
+        if key.endswith("_delta"):
+            if isinstance(value, (int, float)) and value > 0:
+                label = key.removesuffix("_delta")
+                parts.append(f"{label} +{value}")
+            continue
+        parts.append(f"{key}: {value}")
+
+    for key, value in item.metrics.items():
+        if not key.endswith("_growth_pct"):
+            continue
+        if isinstance(value, (int, float)) and value > 0:
+            label = key.removesuffix("_growth_pct")
+            parts.append(f"{label} growth: {value}%")
+    return ", ".join(parts) if parts else "n/a"
+
+
+def _format_summary(item: TrendItem) -> str:
+    summary = item.metadata.get("llm_summary")
+    if not isinstance(summary, dict):
+        return ""
+    lines = []
+    if summary.get("what"):
+        lines.append(f"**What:** {summary['what']}")
+    if summary.get("why"):
+        lines.append(f"**Why it matters:** {summary['why']}")
+    if summary.get("risk"):
+        lines.append(f"**Risk:** {summary['risk']}")
+    return "\n\n".join(lines)
+
+
+def _summary_block(item: TrendItem) -> str:
+    summary = item.metadata.get("llm_summary")
+    if not isinstance(summary, dict):
+        return ""
+    rows = []
+    labels = [("what", "What"), ("why", "Why"), ("risk", "Risk")]
+    for key, label in labels:
+        value = summary.get(key)
+        if value:
+            rows.append(f"<p><strong>{label}:</strong> {html.escape(value)}</p>")
+    if not rows:
+        return ""
+    return f'<div class="summary">{"".join(rows)}</div>'
 
 
 def _one_line(text: str) -> str:
