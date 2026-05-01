@@ -39,3 +39,5 @@ class RunConfig:
     offline: bool = False
     github_token: str | None = None
     hf_token: str | None = None
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4.1-mini"
